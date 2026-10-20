@@ -719,12 +719,22 @@ impl<F: Fetcher> Engine<F> {
                 continue;
             }
 
-            tokio::select! {
-                () = tokio::time::sleep(delay) => {}
-                maybe = cmd_rx.recv() => match maybe {
-                    Some(cmd) => self.handle_command(cmd).await,
-                    None => return,
-                },
+            // Read-only IPC and settings edits must not shorten the published wait.
+            // Only an explicit retry (or stop) interrupts this deadline.
+            let wait = tokio::time::sleep(delay);
+            tokio::pin!(wait);
+            loop {
+                tokio::select! {
+                    () = &mut wait => break,
+                    maybe = cmd_rx.recv() => match maybe {
+                        Some(cmd) => {
+                            let retry = matches!(&cmd, Command::RetryNow(_));
+                            self.handle_command(cmd).await;
+                            if retry || !self.running { break; }
+                        },
+                        None => return,
+                    },
+                }
             }
         }
     }

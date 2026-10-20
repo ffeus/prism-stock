@@ -157,6 +157,43 @@ fn fast_config() -> WatcherConfig {
     }
 }
 
+#[tokio::test]
+async fn read_commands_must_not_bypass_cycle_wait() {
+    let fake =
+        FakeFetcher::new(|_, store, parts| Ok(ok_response(store, parts, Availability::OutOfStock)));
+    let config = WatcherConfig {
+        interval: Duration::from_secs(30),
+        ..fast_config()
+    };
+    let (watcher, mut events) = Watcher::spawn(fake.clone(), config);
+    watcher.set_targets(vec![target("R683", "MG724CH/A")]).await;
+    watcher.start().await;
+    wait_cycle(&mut events).await;
+    for _ in 0..3 {
+        assert!(watcher.is_running().await);
+        let _ = watcher.snapshot().await;
+    }
+    tokio::time::sleep(Duration::from_millis(60)).await;
+    let count = fake.call_count();
+    watcher.stop().await;
+    assert_eq!(count, 1, "read-only IPC must not trigger new Apple queries");
+}
+
+#[tokio::test]
+async fn read_commands_must_not_bypass_protection_cooldown() {
+    let fake = ProtectedFetcher::default();
+    let (watcher, mut events) = Watcher::spawn(fake.clone(), fast_config());
+    watcher.set_targets(vec![target("R683", "MG724CH/A")]).await;
+    watcher.start().await;
+    wait_cycle(&mut events).await;
+    let _ = watcher.snapshot().await;
+    assert!(watcher.is_running().await);
+    tokio::time::sleep(Duration::from_millis(60)).await;
+    let count = fake.calls.load(Ordering::SeqCst);
+    watcher.stop().await;
+    assert_eq!(count, 1, "read-only IPC must not bypass cooldown");
+}
+
 /// 等到至少收到一次 CycleComplete，返回这期间的全部事件。
 async fn wait_cycle(rx: &mut Receiver<Event>) -> Vec<Event> {
     let mut got = Vec::new();

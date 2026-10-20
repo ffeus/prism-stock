@@ -32,6 +32,8 @@ concurrency:
 
 jobs:
   build:
+    # This inherited workflow must not publish upstream packages for Prism Stock.
+    if: github.repository == 'suversal/apple-store-inventory-monitor'
     name: ${{ matrix.label }}
     runs-on: ${{ matrix.runner }}
     permissions:

@@ -22,15 +22,23 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
 use tauri_plugin_updater::UpdaterExt;
 
+mod app_paths;
 mod browser_support;
 mod checkout;
 mod chromium_fetcher;
 mod clash;
+mod inventory_service;
 mod route_pool;
+mod test_workspace;
 #[cfg(windows)]
 mod windows_chromium;
 use checkout::{CheckoutOutcome, CheckoutPlan, CheckoutRunner};
 use chromium_fetcher::AppleChromiumFetcher;
+
+/// Read-only local browser transport; never starts the desktop checkout coordinator.
+pub fn run_inventory_service() -> Result<(), String> {
+    inventory_service::run()
+}
 
 /// 前端事件通道名。前端用 `listen("watcher://event", ...)` 订阅。
 const EVENT_CHANNEL: &str = "watcher://event";
@@ -799,12 +807,20 @@ struct UpdateInfo {
     notes: Option<String>,
 }
 
-/// 查询有没有新版本。返回 `None` 表示已经是最新。
+// Enable only after configuring this fork's release endpoint and signing key.
+fn fork_updates_enabled() -> bool {
+    false
+}
+
+/// 查询有没有新版本。返回 `None` 表示没有可用更新（衍生版可能禁用更新）。
 ///
 /// **刻意不做静默自动安装**：给用户装东西这件事应该由用户点头。何况这是个会在
 /// 抢购当口挂着的程序，自作主张地下载、替换、重启，正好会赶上最不该被打断的时刻。
 #[tauri::command]
 async fn check_for_update(app: AppHandle) -> Result<Option<UpdateInfo>, String> {
+    if !fork_updates_enabled() {
+        return Ok(None);
+    }
     let updater = app
         .updater_builder()
         .timeout(Duration::from_secs(300))
@@ -829,6 +845,9 @@ async fn check_for_update(app: AppHandle) -> Result<Option<UpdateInfo>, String> 
 /// 下载并安装更新。安装完成后需要重启应用才生效。
 #[tauri::command]
 async fn install_update(app: AppHandle) -> Result<(), String> {
+    if !fork_updates_enabled() {
+        return Err("棱镜库存尚未配置独立签名更新渠道，禁止安装上游发布包".into());
+    }
     let updater = app
         .updater_builder()
         .timeout(Duration::from_secs(300))
@@ -1318,7 +1337,7 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
                 tauri::Error::AssetNotFound("默认窗口图标缺失，无法建立托盘".into())
             })?,
         )
-        .tooltip("果到雷达")
+        .tooltip("棱镜库存 · Prism Stock")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
@@ -1363,7 +1382,10 @@ fn reveal_window(app: &AppHandle) {
 /// 时的几次控件赋值就会把仅存的那份原子替换成一份空的默认配置，监控列表再也
 /// 找不回来。Go 版正是这么丢过数据。
 fn load_settings(notices: &mut Vec<String>) -> (Settings, Option<SettingsStore>) {
-    let store = match SettingsStore::new() {
+    let store = match app_paths::root()
+        .map(|root| SettingsStore::at(root.join("settings.json")))
+        .ok_or("无法定位独立的棱镜库存配置目录")
+    {
         Ok(s) => s,
         Err(err) => {
             notices.push(format!("配置目录不可用，本次运行的设置不会被保存：{err}"));
@@ -1371,42 +1393,10 @@ fn load_settings(notices: &mut Vec<String>) -> (Settings, Option<SettingsStore>)
         }
     };
 
-    // 「新版配置文件还不存在」才是首次运行的判据。
-    //
-    // 不能用「目标列表为空」代替：用户删光目标后保存的是一份合法的空目标配置，
-    // 而旧版 settings.json 是刻意保留不删的（为了能回退），于是下次启动会把他
-    // 亲手删掉的目标连同 locale、Bark 地址一起原样倒回来。
-    let first_run = store.path().symlink_metadata().is_err();
-
+    // Fork starts independently. Existing config format remains compatible, but
+    // importing upstream contact details, credentials or profiles requires consent.
     match store.load() {
-        Ok(settings) => {
-            if first_run && let Some(previous) = store.import_previous_version() {
-                notices.push(format!(
-                    "已从改名前版本迁移了 {} 条监控目标。",
-                    previous.targets.len()
-                ));
-                if let Err(err) = store.save(&previous) {
-                    notices.push(format!("迁移结果暂时没能保存：{err}"));
-                }
-                return (previous, Some(store));
-            }
-            if first_run
-                && let Some(legacy) = store.import_legacy()
-                && !legacy.targets.is_empty()
-            {
-                notices.push(format!(
-                    "已从旧版设置迁移了 {} 条监控目标。",
-                    legacy.targets.len()
-                ));
-                // 立刻落盘。否则用户不改任何设置时新版文件一直不存在，
-                // 每次启动都要重迁一遍，用户删掉的目标也会一直复活。
-                if let Err(err) = store.save(&legacy) {
-                    notices.push(format!("迁移结果暂时没能保存：{err}"));
-                }
-                return (legacy, Some(store));
-            }
-            (settings, Some(store))
-        }
+        Ok(settings) => (settings, Some(store)),
         Err(err) => {
             match store.preserve_corrupted() {
                 Ok(Some(path)) => {
@@ -1435,15 +1425,14 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        // No updater plugin until the fork has its own verified signing channel.
         .setup(|app| {
             let mut notices = Vec::new();
             let (mut settings, store) = load_settings(&mut notices);
             // 在线刷新过的门店和型号缓存在设置目录旁边，重启后优先使用。
             let catalog = Catalog::with_cache_dir(
-                dirs::config_dir()
-                    .unwrap_or_else(std::env::temp_dir)
-                    .join("apple-store-inventory-monitor")
+                app_paths::root()
+                    .unwrap_or_else(|| std::env::temp_dir().join("prism-stock"))
                     .join("catalog-cache"),
             );
             let saved_targets = settings.targets.clone();

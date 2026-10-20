@@ -1,0 +1,36 @@
+name: Offline browser regression
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: browser-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 9
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm build
+      # Mock-only server is isolated on 1427 and rejects external requests.
+      - run: node tests/ui-smoke.mjs
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: offline-browser-evidence
+          path: docs/v2/evidence/
+          retention-days: 7

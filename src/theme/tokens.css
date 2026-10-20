@@ -1,0 +1,33 @@
+:root {
+  --radius: .6rem;
+  --background: #f8f9fb; --foreground: #23272f;
+  --card: #ffffff; --card-foreground: #23272f;
+  --popover: #ffffff; --popover-foreground: #23272f;
+  --primary: #16745b; --primary-foreground: #ffffff;
+  --secondary: #edf0f3; --secondary-foreground: #303744;
+  --muted: #f0f2f5; --muted-foreground: #656e7d;
+  --accent: #eaf3ef; --accent-foreground: #16614c;
+  --destructive: #b52c3f; --border: #e0e4e9; --input: #d7dce4; --ring: #238365;
+  --in-stock: #12714c; --unknown: #995b0b; --out-of-stock: #9b3853;
+  --presale: #335bb0; --coming-soon: #7051aa; --pickup-unsupported: #646c7c; --not-for-sale: #80620e;
+  --delivery-fast: #12714c; --delivery-soon: #277084; --delivery-standard: #335bb0; --delivery-later: #85600f; --delivery-unknown: #656e7d;
+  --sidebar: #f2f4f7; --panel-highlight: #ffffff; --panel-shadow: #182d4612;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px; --space-8: 32px;
+  --font-body: 14px; --font-caption: 12px; --font-heading: 25px;
+  --shadow-panel: 0 2px 5px #0d203905; --shadow-float: 0 12px 36px #0b172f24;
+}
+.dark {
+  --background: #111316; --foreground: #eceef1;
+  --card: #191c20; --card-foreground: #eceef1;
+  --popover: #23272e; --popover-foreground: #eceef1;
+  --primary: #69d7b0; --primary-foreground: #102b22;
+  --secondary: #282d35; --secondary-foreground: #e4e7ec;
+  --muted: #23272e; --muted-foreground: #a0a9b8;
+  --accent: #233a32; --accent-foreground: #91e3c4;
+  --destructive: #ff8794; --border: #30353d; --input: #3c434f; --ring: #69d7b0;
+  --in-stock: #6ddaab; --unknown: #e6b969; --out-of-stock: #e998ad;
+  --presale: #9abafa; --coming-soon: #c5a7ed; --pickup-unsupported: #acb4c4; --not-for-sale: #dfca81;
+  --delivery-fast: #6ddaab; --delivery-soon: #83c9db; --delivery-standard: #9abafa; --delivery-later: #e6c57b; --delivery-unknown: #a0a9b8;
+  --sidebar: #15181c; --panel-highlight: #23272d; --panel-shadow: #00000050;
+  --shadow-panel: 0 2px 5px #00000014; --shadow-float: 0 12px 36px #00000066;
+}

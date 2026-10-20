@@ -29,24 +29,27 @@ interface CollapsiblePanelProps {
   /** 折叠后在标题下显示的当前状态摘要。 */
   summary: ReactNode;
   children: ReactNode;
+  defaultOpen?: boolean;
+  alwaysOpen?: boolean;
 }
 
 /** 侧栏可折叠面板。折叠后只保留标题和摘要，把空间让给活动日志。 */
-export function CollapsiblePanel({ id, icon, title, subtitle, summary, children }: CollapsiblePanelProps) {
-  const [open, setOpen] = useState(() => readOpen(id, true));
+export function CollapsiblePanel({ id, icon, title, subtitle, summary, children, defaultOpen = true, alwaysOpen = false }: CollapsiblePanelProps) {
+  const [open, setOpen] = useState(() => readOpen(id, defaultOpen));
   const titleId = `${id}-title`;
   const bodyId = `${id}-body`;
+  const Toggle = alwaysOpen ? "div" : "button";
 
   return (
     <section className="surface-panel min-w-0 shrink-0" aria-labelledby={titleId}>
       {/* 标准折叠面板结构：标题包住按钮，按钮内只放行内元素。 */}
       <h2 id={titleId} className="m-0">
-        <button
-          type="button"
+        <Toggle
+          {...(alwaysOpen ? {} : { type: "button" as const })}
           className="flex w-full min-w-0 items-center gap-3 rounded-2xl p-4 text-left transition-colors hover:bg-muted/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-expanded={open}
-          aria-controls={bodyId}
-          onClick={() => {
+          aria-expanded={alwaysOpen ? undefined : open}
+          aria-controls={alwaysOpen ? undefined : bodyId}
+          onClick={alwaysOpen ? undefined : () => {
             setOpen(!open);
             writeOpen(id, !open);
           }}
@@ -54,15 +57,15 @@ export function CollapsiblePanel({ id, icon, title, subtitle, summary, children 
           <span className="section-icon" aria-hidden="true">{icon}</span>
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="text-sm font-semibold">{title}</span>
-            <span className="mt-0.5 truncate text-xs font-normal text-muted-foreground">{open ? subtitle : summary}</span>
+            <span className="mt-0.5 text-xs font-normal text-muted-foreground">{alwaysOpen || open ? subtitle : summary}</span>
           </span>
-          <ChevronDown
+          {!alwaysOpen && <ChevronDown
             className={`size-4 shrink-0 text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`}
             aria-hidden="true"
-          />
-        </button>
+          />}
+        </Toggle>
       </h2>
-      {open ? (
+      {alwaysOpen || open ? (
         <div id={bodyId} className="min-w-0 px-4 pb-4">
           {children}
         </div>

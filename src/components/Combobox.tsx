@@ -54,6 +54,7 @@ export function Combobox({
         <Button
           variant="outline"
           role="combobox"
+          aria-label={placeholder}
           aria-expanded={open}
           disabled={disabled}
           className={cn("justify-between font-normal", className)}
@@ -85,7 +86,7 @@ export function Combobox({
               {options.map((option) => (
                 <CommandItem
                   key={option.value}
-                  value={option.label}
+                  value={`${option.label} ${option.value}`}
                   onSelect={() => {
                     onChange(option.value);
                     setOpen(false);

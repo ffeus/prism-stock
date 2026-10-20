@@ -29,3 +29,26 @@ pnpm-debug.log*
 
 # 生成快照的脚本留下的字节码缓存
 __pycache__/
+
+# Local secrets, profiles and private test evidence must never be published.
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.pfx
+/.audit-tools/
+/.agents/
+/.codex/
+/.aws/
+/docs/audit/evidence/
+/docs/ui/evidence/
+/docs/v2/evidence/
+# Historical workstation audit reports stay local; publish a curated report instead.
+/docs/audit/
+/docs/ui/
+/docs/v2/*
+!/docs/v2/Run-Check.ps1
+!/docs/v2/tauri.smoke.conf.json
+/playwright-report/
+/test-results/

@@ -130,16 +130,16 @@ def extract(page: bytes):
             continue
 
         pos = at + len(KEY)
-        while search[pos : pos + 1] in b" \t\r\n":
+        while pos < len(search) and search[pos : pos + 1] in b" \t\r\n":
             pos += 1
         if search[pos : pos + 1] in (b'"', b"'"):
             pos += 1
-            while search[pos : pos + 1] in b" \t\r\n":
+            while pos < len(search) and search[pos : pos + 1] in b" \t\r\n":
                 pos += 1
         if search[pos : pos + 1] != b":":
             continue
         pos += 1
-        while search[pos : pos + 1] in b" \t\r\n":
+        while pos < len(search) and search[pos : pos + 1] in b" \t\r\n":
             pos += 1
         if search[pos : pos + 1] != b"{":
             continue
@@ -235,6 +235,11 @@ def trim(data: dict):
     kept_products.sort(key=lambda item: item.get("partNumber") or item.get("btrOrFdPartNumber") or item.get("part") or "")
 
     out = {"products": kept_products}
+    # These are page-level Watch configuration identifiers, not display labels.
+    # Losing them makes the saved case SKU unusable for the configured band/kit.
+    for key in ("companionPart", "kitPart"):
+        if isinstance(data.get(key), str) and data[key].strip():
+            out[key] = data[key]
     if isinstance(data.get("macProductLinks"), list):
         out["macProductLinks"] = data["macProductLinks"]
     # 代数以及 Ultra 的固定规格位于无脚本商品入口，不能在裁剪时丢掉。
@@ -272,6 +277,18 @@ def trim(data: dict):
     return out
 
 
+def snapshot_page_error(category: str, data: dict) -> str | None:
+    """Fail closed before overwriting a complete snapshot with incomplete Watch data."""
+    if not data.get("products"):
+        return "无商品"
+    if category == "watch" and not all(
+        isinstance(data.get(key), str) and data[key].strip()
+        for key in ("companionPart", "kitPart")
+    ):
+        return "缺少 Watch 表带或套装编号，保持原快照；需完善页面配置解析"
+    return None
+
+
 # ---- 自检 ----
 #
 # 这个脚本产出的东西没法靠 Rust 测试兜住：它要是把一份**旧目录**写进快照，
@@ -284,6 +301,16 @@ def trim(data: dict):
 def self_test() -> int:
     real = '{"products":[{"partNumber":"NEW/A","familyType":"iphone17"}]}'
     stale = '{"products":[{"partNumber":"OLD/A","familyType":"iphone12"}]}'
+    # b"" is a substring of every bytes value: whitespace loops need EOF guards.
+    for suffix in (b"", b" \t", b'"', b'" \n', b":", b": \r\n"):
+        assert extract(b"PRODUCT_SELECTION_BOOTSTRAP productSelectionData" + suffix) is None
+
+    watch = {"products": [{"partNumber": "CASE/A"}], "companionPart": "BAND/A", "kitPart": "KIT"}
+    assert trim(watch)["companionPart"] == "BAND/A"
+    assert trim(watch)["kitPart"] == "KIT"
+    assert snapshot_page_error("watch", trim(watch)) is None
+    assert snapshot_page_error("watch", {"products": watch["products"]}) is not None
+    assert snapshot_page_error("iphone", {"products": watch["products"]}) is None
 
     def bootstrap(body: str) -> bytes:
         return f"window.PRODUCT_SELECTION_BOOTSTRAP = {{ {body} }};".encode()
@@ -359,10 +386,11 @@ def main() -> int:
                 continue
 
             trimmed = trim(data)
-            if not trimmed["products"]:
-                failed.append(f"{locale} {slug}（无商品）")
+            page_error = snapshot_page_error(category, trimmed)
+            if page_error:
+                failed.append(f"{locale} {slug}（{page_error}）")
                 broken = True
-                print(f"  !! {locale} {slug} 没有解析出商品", file=sys.stderr)
+                print(f"  !! {locale} {slug} {page_error}", file=sys.stderr)
                 continue
 
             pages.append({"category": category, "family": slug, "data": trimmed})

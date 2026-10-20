@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Check, Copy, FileCode2, Globe, LoaderCircle, PlugZap, RefreshCw } from "lucide-react";
 import { Combobox } from "@/components/Combobox";
 import { CollapsiblePanel } from "@/components/CollapsiblePanel";
+import { useFeedback } from "@/components/Workbench";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -115,32 +116,32 @@ function ClashSetupGuide({ clash }: { clash: ClashSettings }) {
         <DialogHeader className="shrink-0 border-b border-border/60 px-6 pt-6 pb-4">
           <DialogTitle>配置 Clash 节点轮换</DialogTitle>
           <DialogDescription className="leading-5">
-            以 Clash Verge Rev（mihomo 内核）为例，约 3 分钟。配置只新增一个果到雷达专用的策略组和端口，电脑本身使用的节点不受影响。
+            以 Clash Verge Rev（mihomo 内核）为例。保留已有策略组名称以兼容旧配置；请遵守平台访问规则。
           </DialogDescription>
         </DialogHeader>
         <ol className="min-h-0 space-y-5 overflow-y-auto px-6 py-5">
           <GuideStep index={1} title="开启 Clash 外部控制器">
             <p>
               打开 Clash Verge，进入 <Ui>设置</Ui> → <Ui>Clash 设置</Ui> → <Ui>外部控制</Ui>，打开
-              <Ui>「启用外部控制器」</Ui>，然后保存。果到雷达通过它读取节点和切换节点。
+              <Ui>「启用外部控制器」</Ui>，然后保存。棱镜库存通过它读取节点和切换节点。
             </p>
             <ul className="list-disc space-y-1 pl-5">
               <li>
-                <Ui>外部控制器监听地址</Ui>（例如 <Code>127.0.0.1:9097</Code>）→ 填到果到雷达的<Ui>「控制接口」</Ui>，直接粘贴即可。
+                <Ui>外部控制器监听地址</Ui>（例如 <Code>127.0.0.1:9097</Code>）→ 填到棱镜库存的<Ui>「控制接口」</Ui>，直接粘贴即可。
               </li>
               <li>
-                <Ui>API 访问密钥</Ui> → 填到果到雷达的<Ui>「密钥」</Ui>。没有设置密钥可留空，建议设置一个。
+                <Ui>API 访问密钥</Ui> → 填到棱镜库存的<Ui>「密钥」</Ui>。没有设置密钥可留空，建议设置一个。
               </li>
             </ul>
           </GuideStep>
 
-          <GuideStep index={2} title="添加果到雷达专用的扩展脚本">
+          <GuideStep index={2} title="配置专用扩展脚本（先备份现有配置）">
             <ol className="list-decimal space-y-1 pl-5">
               <li>
                 进入 Clash Verge 的 <Ui>订阅</Ui> 页面，在页面底部找到 <Ui>「全局扩展脚本」</Ui>（右上角标着 Script）。
               </li>
               <li>
-                右键点击它 → <Ui>编辑文件</Ui>，把编辑器里原有内容<Ui>全部替换</Ui>为下面的脚本。
+                右键点击它 → <Ui>编辑文件</Ui>。先备份原有脚本；只有空白配置才能直接使用下面的示例。已有脚本时请手动合并，避免覆盖原有规则。
               </li>
               <li>
                 修改脚本开头的 <Code>APW_SUBSCRIPTIONS</Code>：把 <Code>"机场订阅地址"</Code> 换成你的订阅链接（在订阅卡片上右键可复制，或到机场官网复制）。
@@ -171,12 +172,12 @@ function ClashSetupGuide({ clash }: { clash: ClashSettings }) {
             </ul>
           </GuideStep>
 
-          <GuideStep index={4} title="回到果到雷达填写并检查">
+          <GuideStep index={4} title="回到棱镜库存填写并检查">
             <div className="overflow-hidden rounded-lg border border-border/60">
               <table className="w-full text-left text-xs leading-5">
                 <thead className="bg-muted/40 text-foreground">
                   <tr>
-                    <th className="px-3 py-1.5 font-medium">果到雷达中的项目</th>
+                    <th className="px-3 py-1.5 font-medium">棱镜库存中的项目</th>
                     <th className="px-3 py-1.5 font-medium">填写什么</th>
                   </tr>
                 </thead>
@@ -366,11 +367,14 @@ export function NetworkSettings({
   network,
   running,
   route,
+  expanded = false,
 }: {
   network: Network;
   running: boolean;
   route: string | null;
+  expanded?: boolean;
 }) {
+  const feedback = useFeedback();
   const [draft, setDraft] = useState<ClashSettings>(network.clash);
   const [checking, setChecking] = useState(false);
   const [check, setCheck] = useState<ClashRouteCheck | string | null>(null);
@@ -380,7 +384,8 @@ export function NetworkSettings({
   const saveClash = () => {
     if (JSON.stringify(draft) === JSON.stringify(network.clash)) return;
     setCheck(null);
-    void saveSettings({ network: { ...network, clash: draft } });
+    const changed = Object.fromEntries(Object.entries(draft).filter(([key, value]) => value !== network.clash[key as keyof ClashSettings]));
+    void saveSettings({ network: { clash: changed } }).then(ok => feedback(ok ? "网络设置已保存" : "网络设置保存失败", !ok));
   };
   const text = (key: "controller" | "secret" | "group" | "nodeFilter") => ({
     value: draft[key],
@@ -391,6 +396,8 @@ export function NetworkSettings({
   return (
     <CollapsiblePanel
       id="network"
+      alwaysOpen={expanded}
+      defaultOpen={false}
       icon={<Globe className="size-4" />}
       title="查询线路"
       subtitle={route ? `当前：${route}` : "Apple 查询使用的出口 IP"}
@@ -402,7 +409,7 @@ export function NetworkSettings({
           value={network.mode}
           onValueChange={(mode) => {
             setCheck(null);
-            void saveSettings({ network: { ...network, mode: mode as NetworkMode } });
+            void saveSettings({ network: { mode: mode as NetworkMode } }).then(ok => feedback(ok ? "网络模式已保存，后续查询使用新设置" : "网络模式保存失败", !ok));
           }}
         >
           <SelectTrigger id="network-mode" className="control-surface w-full" aria-label="出口方式">
@@ -433,7 +440,7 @@ export function NetworkSettings({
             pinned={network.mode === "pinned" ? network.clash.pinnedNode : null}
             onPin={async (node) => {
               // 先保存，保证重启后仍用该节点；再立即切换，不必等到下一轮。
-              if (await saveSettings({ network: { ...network, clash: { ...network.clash, pinnedNode: node } } })) {
+              if (await saveSettings({ network: { clash: { pinnedNode: node } } })) {
                 await selectClashNode(node);
               }
             }}

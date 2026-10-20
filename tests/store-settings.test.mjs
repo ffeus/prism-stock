@@ -67,6 +67,29 @@ async function setup() {
 }
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
+test('编辑监控拒绝重复组合且不覆盖其他任务', async () => {
+  const ctx = await setup();
+  const a = {locale:'zh_CN',partNumber:'A',storeNumber:'R001',storeTitle:'一',productName:'A'};
+  const b = {...a,storeNumber:'R002',storeTitle:'二'};
+  await ctx.store.setTargets([a,b]);
+  assert.equal(await ctx.store.replaceTarget(a,b),false);
+  assert.deepEqual(ctx.persisted().targets,[a,b]);
+  assert.equal(await ctx.store.replaceTarget(a,{...a,partNumber:'C'}),true);
+  assert.equal(ctx.persisted().targets.length,2);
+});
+
+test('排队修改表带不复活先前删除的其他任务', async () => {
+  const ctx = await setup();
+  const a = {locale:'zh_CN',partNumber:'WATCH',storeNumber:'R001',storeTitle:'一',productName:'Watch',companionPart:'OLD'};
+  const b = {...a,storeNumber:'R002'};
+  await ctx.store.setTargets([a,b]);
+  ctx.block();
+  const remove = ctx.store.removeTarget(b); await tick();
+  const band = ctx.store.updateWatchBand(a,'NEW','新表带');
+  ctx.release(); await Promise.all([remove,band]);
+  assert.deepEqual(ctx.persisted().targets,[{...a,companionPart:'NEW',companionName:'新表带'}]);
+});
+
 test("送货地区固定读取中国大陆官网且不跟随当前监控地区", async () => {
   let received;
   invoke = async (command, args) => {
@@ -136,7 +159,7 @@ test("rapid removals use the latest queued target list", async () => {
 
   ctx.release();
   await Promise.all([firstRemoval, secondRemoval]);
-  assert.deepEqual(ctx.calls, ["set_targets", "set_targets"]);
+  assert.deepEqual(ctx.calls, ["set_targets", "get_settings", "set_targets", "get_settings"]);
   assert.deepEqual(ctx.persisted().targets, [retainedTarget]);
 });
 
@@ -178,4 +201,95 @@ test("a product-specific Bark URL can be set and cleared", async () => {
 
   assert.equal(await ctx.store.setProductBarkUrl(target, ""), true);
   assert.deepEqual(ctx.persisted().productBarkUrls, {});
+});
+
+test("nested field patches merge when queued instead of restoring a stale form", async () => {
+  const ctx = await setup();
+  ctx.block();
+  const first = ctx.store.saveSettings({ checkout: { contactLastName: 'Test' } });
+  await tick();
+  const second = ctx.store.saveSettings({ checkout: { contactFirstName: 'Fixture' } });
+  ctx.release();
+  await Promise.all([first, second]);
+  assert.equal(ctx.persisted().checkout.contactLastName, 'Test');
+  assert.equal(ctx.persisted().checkout.contactFirstName, 'Fixture');
+  assert.equal(ctx.persisted().checkout.placeOrder, false);
+});
+
+test("failed locale save leaves the catalog and locale aligned", async () => {
+  const ctx = await setup();
+  const calls = [];
+  invoke = async (command) => { calls.push(command); throw new Error('disk unavailable'); };
+  await ctx.store.changeLocale('ja_JP');
+  assert.equal(ctx.store.watcherStore.getSnapshot().settings.locale, 'zh_CN');
+  assert.deepEqual(calls, ['save_settings']);
+});
+
+test("late region response cannot overwrite the current catalog", async () => {
+  const ctx = await setup();
+  const originalInvoke = invoke;
+  const blocked = [];
+  invoke = async (command, args) => {
+    if (command === 'list_stores' || command === 'list_products') {
+      if (args.locale === 'ja_JP') await new Promise(resolve => blocked.push(resolve));
+      return [{ marker: args.locale }];
+    }
+    return originalInvoke(command, args);
+  };
+  const older = ctx.store.changeLocale('ja_JP');
+  await tick();
+  await ctx.store.changeLocale('en_SG');
+  blocked.forEach(resolve => resolve());
+  await older;
+  const state = ctx.store.watcherStore.getSnapshot();
+  assert.equal(state.catalogLocale, 'en_SG');
+  assert.equal(state.products[0].marker, 'en_SG');
+  assert.equal(state.catalogLoading, false);
+});
+
+test("initial IPC failure can be retried", async () => {
+  const ctx = await setup();
+  const persisted = ctx.persisted();
+  invoke = async () => { throw new Error('startup failed'); };
+  await assert.rejects(ctx.store.connect(), /startup failed/);
+  invoke = async (command) => command === 'get_settings' ? persisted : command === 'is_running' ? false : [];
+  await assert.doesNotReject(ctx.store.connect());
+  assert.equal(ctx.store.watcherStore.getSnapshot().ready, true);
+  ctx.store.disconnect();
+});
+
+test("target changes synchronize normalized checkout settings", async () => {
+  const ctx = await setup();
+  const originalInvoke = invoke;
+  invoke = async (command, args) => {
+    const result = await originalInvoke(command, args);
+    if (command === 'get_settings') return { ...result, checkout: { ...result.checkout, enabled: false, product: '' } };
+    return result;
+  };
+  await ctx.store.saveSettings({ checkout: { enabled: true, product: 'TEST/A||' } });
+  await ctx.store.setTargets([]);
+  assert.equal(ctx.store.watcherStore.getSnapshot().settings.checkout.enabled, false);
+});
+
+test("adding tasks after a pending removal does not resurrect the removed task", async () => {
+  const ctx = await setup();
+  const target = (partNumber) => ({ locale: 'zh_CN', storeNumber: 'TEST', storeTitle: 'Fixture', partNumber, productName: partNumber });
+  const removed = target('REMOVE/A'); const retained = target('KEEP/A'); const added = target('ADD/A');
+  await ctx.store.setTargets([removed, retained]);
+  ctx.block();
+  const removing = ctx.store.removeTarget(removed);
+  await tick();
+  const adding = ctx.store.addTargets([added, added]);
+  ctx.release();
+  await Promise.all([removing, adding]);
+  assert.deepEqual(ctx.persisted().targets, [retained, added]);
+});
+
+test("disabled fork updater never invokes an upstream install command", async () => {
+  const ctx = await setup();
+  await ctx.store.checkForUpdate({ quiet: true });
+  await ctx.store.installUpdate();
+  await ctx.store.openReleasePage();
+  assert.deepEqual(ctx.calls, []);
+  assert.match(ctx.store.watcherStore.getSnapshot().updateError, /尚未发布/);
 });

@@ -1,11 +1,20 @@
 [package]
 name = "apple-store-inventory-monitor"
+default-run = "apple-store-inventory-monitor"
 description = "Apple 直营店到店取货库存监控"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+
+[[bin]]
+name = "prism-inventory-service"
+path = "src/inventory-service-main.rs"
+required-features = ["browser-inventory-service"]
+
+[features]
+browser-inventory-service = []
 
 [lib]
 # _lib 后缀不是多余的：Windows 上库名与二进制同名会冲突。

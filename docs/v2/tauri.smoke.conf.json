@@ -1,0 +1,7 @@
+{
+  "identifier": "local.prism-stock.v2-smoke",
+  "app": {
+    "windows": [{ "label": "main", "title": "棱镜库存 V2 · 隔离验收", "width": 1440, "height": 940, "minWidth": 900, "minHeight": 640, "dataDirectory": "isolated-v2-smoke" }]
+  },
+  "bundle": { "active": false, "createUpdaterArtifacts": false }
+}

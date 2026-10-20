@@ -128,9 +128,8 @@ fn chromium_profile_dir() -> PathBuf {
 
 /// 应用专属的 Chromium 资料目录。查询与结账各用一个，互不共享 Cookie。
 pub(crate) fn app_profile_dir(name: &str) -> PathBuf {
-    dirs::config_dir()
-        .unwrap_or_else(std::env::temp_dir)
-        .join("apple-store-inventory-monitor")
+    crate::app_paths::root()
+        .unwrap_or_else(|| std::env::temp_dir().join("prism-stock"))
         .join(name)
 }
 
@@ -1962,6 +1961,13 @@ impl AppleChromiumFetcher {
         Self {
             state: Arc::new(Mutex::new(QueryState::default())),
             profile_dir: chromium_profile_dir(),
+        }
+    }
+
+    pub(crate) fn with_profile_dir(profile_dir: PathBuf) -> Self {
+        Self {
+            state: Arc::new(Mutex::new(QueryState::default())),
+            profile_dir,
         }
     }
 
@@ -4007,10 +4013,7 @@ mod tests {
     fn chromium使用应用专属持久资料目录() {
         let path = chromium_profile_dir();
         assert!(path.ends_with(CHROMIUM_PROFILE_DIR));
-        assert!(
-            path.to_string_lossy()
-                .contains("apple-store-inventory-monitor")
-        );
+        assert!(path.to_string_lossy().contains("prism-stock"));
     }
 
     #[cfg(unix)]

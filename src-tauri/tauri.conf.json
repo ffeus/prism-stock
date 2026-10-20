@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "果到雷达",
+  "productName": "棱镜库存",
   "version": "1.0.22",
-  "identifier": "com.suversal.apple-store-inventory-monitor",
+  "identifier": "com.ffeus.prism-stock",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -12,9 +12,9 @@
   "app": {
     "windows": [
       {
-        "title": "果到雷达",
-        "width": 1080,
-        "height": 820,
+        "title": "棱镜库存 · Prism Stock",
+        "width": 1440,
+        "height": 940,
         "minWidth": 900,
         "minHeight": 640
       }
@@ -33,18 +33,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "createUpdaterArtifacts": true
+    "createUpdaterArtifacts": false
   },
-  "plugins": {
-    "updater": {
-      "active": true,
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE2MjUwQTJGRjYyNzY2NjIKUldSaVppZjJMd29scHZ3WlVTbGJ4YnIzRlBNTVVVQmdod0wzUDVpcjVRQmErZUNwY01ob1Z0R20K",
-      "endpoints": [
-        "https://github.com/suversal/apple-store-inventory-monitor/releases/latest/download/latest.json"
-      ],
-      "windows": {
-        "installMode": "passive"
-      }
-    }
-  }
+  "plugins": {}
 }

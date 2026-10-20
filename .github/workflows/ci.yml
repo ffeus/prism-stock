@@ -249,7 +249,7 @@ jobs:
   # ---------------------------------------------------------------------------
   live:
     name: Apple 接口契约测试（手动）
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'suversal/apple-store-inventory-monitor'
     runs-on: ubuntu-latest
     # 七个地区、每次请求之间至少间隔 2 秒，正常几十秒就跑完。
     # 设上限是为了防止对端挂起把 runner 一直占着。

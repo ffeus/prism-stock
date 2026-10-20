@@ -1,4 +1,43 @@
-# 果到雷达
+# 棱镜库存 · Prism Stock
+
+公开衍生版：[ffeus/prism-stock](https://github.com/ffeus/prism-stock)，基于 [suversal/apple-store-inventory-monitor](https://github.com/suversal/apple-store-inventory-monitor) 的 `v1.0.22`（`7f9e86d642e9b662e7a4bc9ecc156bbd43f070f9`）。保留完整历史、GPL-3.0-or-later 与全部上游来源声明。当前为 V2 开发验证版，重点验收 Windows 与本机浏览器库存查询，并非全部高级功能已完成生产认证。
+
+![真实库存查询界面](docs/screenshots/prism-inventory.png)
+
+## 本衍生版快速开始
+
+安装 Node.js 24、pnpm、Rust stable；Windows 还需 MSVC Build Tools（C++ 桌面开发及 Windows SDK）、WebView2，以及 Chrome 或 Edge。macOS/Linux 的编译依赖见 Tauri 官方说明，本轮没有在这些系统做本机验收。
+
+```powershell
+git clone https://github.com/ffeus/prism-stock.git
+cd prism-stock
+pnpm install --frozen-lockfile
+pnpm inventory:build
+pnpm inventory:dev
+```
+
+打开 <http://127.0.0.1:1425/#products>，选择地区、商品配置和门店，添加目标后点击“查询一次”或“开始监控”。**默认暂停，不自动查询；仅限本机，不要暴露到公网。** 最短间隔 60 秒、最多 20 个 SKU×门店组合；541/限流保持未知并暂停，不当作无货。停止服务：终端 Ctrl+C。
+
+| 入口 | 真实能力 | 边界 |
+|---|---|---|
+| `pnpm inventory:dev`，1425 | 原有 Rust 引擎真实取货库存查询，单次/定时/暂停，真实会话记录 | 不登录、不下单、不付款；暂不提供 Bark/声音推送、FlClash 控制及送货辅助查询 |
+| `pnpm preview:mock`，1427 | 完整 UI 离线体验和自动化测试 | 库存及操作是 Mock，绝不能作为真实监控结果 |
+| `pnpm tauri dev` | 原生桌面界面、Rust IPC、原有通知和结账等设置 | 本次未真实投递 Bark、未验证真实结账；默认禁用自动结账，不承诺高级功能生产可用 |
+
+衍生版桌面标识 `com.ffeus.prism-stock`，数据在系统配置目录的 `prism-stock/`；不自动导入旧版密钥、联系人和浏览器资料，不自动迁移或删除用户数据。浏览器服务使用独立数据目录。应用内更新关闭，不读取上游签名或安装上游更新包。版本号 `1.0.22` 仍为源码基准版本，V2 为衍生开发阶段。
+
+测试和已知限制见 [发布验收记录](docs/PUBLISHING.md)。工作站历史审计报告及 `evidence/` 原始日志保留在本地，不上传 GitHub；公开验收结论以发布记录为准。
+
+- V2 新界面：左侧七页工作台、深浅主题、系列/配置分层选品、城市/区域多选、任务编辑/搜索/筛选/排序、真实会话统计和历史。
+- 早期未签名验证包仍可能使用原版身份，请勿安装。此次源码已隔离身份和数据；作者 X 入口暂不展示。安装包未经安装/卸载验收，不把打包成功视为安装验证通过。
+- 当前交付与验证边界见[发布验收记录](docs/PUBLISHING.md)。工作站历史报告保留本地，不作为公开发行承诺。
+- 本机真实只读查询：先执行 `pnpm inventory:build`，再执行 `pnpm inventory:dev`，访问 `http://127.0.0.1:1425`。支持单次查询、启动/暂停监控，默认不自动查询。
+- 离线预览：`pnpm exec vite --config tests/preview.config.ts`，访问本机 `http://127.0.0.1:1427`。该独立测试入口使用假数据，不能监控真实库存；与 1425 实时入口分开。
+- `pnpm dev` 只启动普通 Vite 页面，真实桌面后端需 `pnpm tauri dev`；两者都不会自动载入测试 Mock。安全预览及隔离桌面启动见[发布验收记录](docs/PUBLISHING.md)。
+
+以下为继承的**上游说明与发布链接**，其中的名称、版本、下载包和 CI 状态属于上游，不代表本衍生版已经完成原生验收。
+
+## 上游：果到雷达
 
 [![CI](https://github.com/suversal/apple-store-inventory-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/suversal/apple-store-inventory-monitor/actions/workflows/ci.yml)
 [![源码版本: v1.0.22](https://img.shields.io/badge/source-v1.0.22-blue)](package.json)

@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { AppWindow, LoaderCircle, PlayCircle, ShoppingCart } from "lucide-react";
 import { CollapsiblePanel } from "@/components/CollapsiblePanel";
+import { useFeedback } from "@/components/Workbench";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { openCheckoutBrowser, saveSettings, testCheckout } from "@/lib/store";
 import { INSTALLMENT_PERIODS, type CheckoutPayment, type CheckoutSettings as Checkout, type Target } from "@/lib/types";
 
@@ -72,7 +74,8 @@ function monitoredProducts(targets: Target[]): { key: string; name: string }[] {
   return [...products].map(([key, name]) => ({ key, name }));
 }
 
-export function CheckoutSettings({ checkout, targets }: { checkout: Checkout; targets: Target[] }) {
+export function CheckoutSettings({ checkout, targets, expanded = false }: { checkout: Checkout; targets: Target[]; expanded?: boolean }) {
+  const feedback = useFeedback();
   const products = monitoredProducts(targets);
   // 只监控一件时就是它；监控多件时以设置里选的为准，选的那件已不在列表里则视为没选。
   const chosen = products.length === 1
@@ -80,6 +83,7 @@ export function CheckoutSettings({ checkout, targets }: { checkout: Checkout; ta
     : products.some((product) => product.key === checkout.product) ? checkout.product : "";
   const [suffix, setSuffix] = useState(checkout.nationalIdSuffix);
   const [busy, setBusy] = useState<"open" | "test" | null>(null);
+  const [confirm, setConfirm] = useState<"order" | "trial" | null>(null);
 
   useEffect(() => setSuffix(checkout.nationalIdSuffix), [checkout.nationalIdSuffix]);
   // 设置里存的是旧版手填的其他名称时，也让它出现在下拉框里，不至于显示成空白。
@@ -87,24 +91,27 @@ export function CheckoutSettings({ checkout, targets }: { checkout: Checkout; ta
     ? INSTALLMENT_BANKS
     : [...INSTALLMENT_BANKS, checkout.installmentBank];
 
-  const save = (patch: Partial<Checkout>) => void saveSettings({ checkout: { ...checkout, ...patch } });
+  const save = async (patch: Partial<Checkout>) => { const ok = await saveSettings({ checkout: patch }); feedback(ok ? "结账设置已保存" : "结账设置保存失败", !ok); };
   const contact = (key: ContactKey) => (value: string) => save({ [key]: value });
   const suffixReady = checkout.nationalIdSuffix.length === 4;
-  const run = async (kind: "open" | "test", action: () => Promise<void>) => {
+  const run = async (kind: "open" | "test", action: () => Promise<unknown>) => {
     setBusy(kind);
-    await action();
-    setBusy(null);
+    try { const ok = await action(); feedback(ok === false ? "操作未完成，请查看活动日志" : kind === "test" ? "试跑已到查看订单页，没有提交订单" : "已请求打开独立浏览器", ok === false); }
+    finally { setBusy(null); }
   };
 
   return (
     <CollapsiblePanel
       id="checkout"
+      alwaysOpen={expanded}
+      defaultOpen={false}
       icon={<ShoppingCart className="size-4" />}
       title="自动结账"
       subtitle="到货后自动走完结账页面，仅支持中国大陆直营店取货"
       summary={summarize(checkout)}
     >
       <div className="grid min-w-0 gap-3">
+        <p role="note" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs leading-5">风险提示：暂停库存监控、关闭开关或移除任务，不保证取消已开始的结账流程。试跑也会访问真实购物袋；请不要把试跑当成离线模拟。</p>
         <div className="setting-row">
           <Label htmlFor="checkout-enabled" className="text-sm font-normal">到货后自动结账</Label>
           <Switch
@@ -268,7 +275,7 @@ export function CheckoutSettings({ checkout, targets }: { checkout: Checkout; ta
           <Switch
             id="checkout-place-order"
             checked={checkout.placeOrder}
-            onCheckedChange={(placeOrder) => save({ placeOrder })}
+            onCheckedChange={(placeOrder) => placeOrder ? setConfirm("order") : void save({ placeOrder: false })}
           />
         </div>
         <p className="text-[11px] leading-4 break-words text-muted-foreground">
@@ -293,7 +300,7 @@ export function CheckoutSettings({ checkout, targets }: { checkout: Checkout; ta
             variant="outline"
             className="h-10 rounded-xl border-border/70 bg-background/30"
             disabled={busy !== null || !suffixReady || !chosen}
-            onClick={() => void run("test", testCheckout)}
+            onClick={() => setConfirm("trial")}
           >
             {busy === "test" ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <PlayCircle aria-hidden="true" />}
             试跑到查看订单页
@@ -302,6 +309,7 @@ export function CheckoutSettings({ checkout, targets }: { checkout: Checkout; ta
         <p className="text-[11px] leading-4 break-words text-muted-foreground">
           首次使用先打开下单浏览器，登录 Apple 账户、加入商品并手动走一次结账。试跑用「要下单的商品」和它第一条监控项的门店，不会提交订单。
         </p>
+        <Dialog open={confirm !== null} onOpenChange={open => { if (!open) setConfirm(null); }}><DialogContent><DialogHeader><DialogTitle>{confirm === "order" ? "允许提交真实订单？" : "确认访问购物袋试跑"}</DialogTitle><DialogDescription>{confirm === "order" ? "此开关允许到货结账生成真实订单。关闭开关或暂停监控无法可靠撤销已经开始的流程。请先完成独立试跑，核对商品、数量与取货信息；建议保持关闭。" : "正式应用会使用已登录的独立浏览器访问 Apple 购物袋并填写取货信息，停在查看订单页；不会提交订单。这不是离线模拟。"}</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setConfirm(null)}>取消</Button><Button variant={confirm === "order" ? "destructive" : "default"} onClick={() => { const action = confirm; setConfirm(null); if (action === "order") void save({ placeOrder: true }); else void run("test", testCheckout); }}>{confirm === "order" ? "了解风险，允许提交" : "确认试跑，不提交订单"}</Button></DialogFooter></DialogContent></Dialog>
       </div>
     </CollapsiblePanel>
   );
