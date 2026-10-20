@@ -13,13 +13,22 @@ test("Linux 包名使用合法 ASCII 标识且保留中文桌面名称", async (
   assert.match(desktop, /^Name=棱镜库存$/m);
 });
 
-test("公开资产名和 Linux 安装说明使用稳定的 ASCII 文件名", async () => {
+test("公开资产使用稳定 ASCII 文件名，产品文档不指向其他项目的安装包", async () => {
   const workflow = await readFile(new URL(".github/workflows/release.yml", root), "utf8");
   const readme = await readFile(new URL("README.md", root), "utf8");
-  const packageJson = JSON.parse(await readFile(new URL("package.json", root), "utf8"));
-  const escapedVersion = packageJson.version.replaceAll(".", "\\.");
   assert.match(workflow, /releaseAssetNamePattern: "\[mainBinaryName\]_\[version\]_\[arch\]\[setup\]\[ext\]"/);
   assert.match(workflow, /dpkg-query -W.*guodao-radar/);
-  assert.match(readme, new RegExp(`apple-store-inventory-monitor_${escapedVersion}_amd64\\.deb`));
-  assert.doesNotMatch(readme, new RegExp(`Apple\\.Store\\.Inventory\\.Monitor_${escapedVersion}`));
+  assert.match(workflow, /if: github.repository == 'suversal\/apple-store-inventory-monitor'/);
+  assert.match(readme, /github\.com\/ffeus\/prism-stock/);
+  assert.doesNotMatch(readme, /github\.com\/suversal\/[^\s)]+\/releases/);
+});
+
+test("README 没有工作站地址或冗长开发背景，同时保留完整许可入口", async () => {
+  const readme = await readFile(new URL("README.md", root), "utf8");
+  assert.doesNotMatch(readme, /127\.0\.0\.1|localhost|公开衍生版|源码基准|7f9e86d/);
+  assert.match(readme, /\[LICENSE\]\(LICENSE\)/);
+  assert.match(readme, /\[NOTICE\]\(NOTICE\)/);
+  const notice = await readFile(new URL("NOTICE", root), "utf8");
+  assert.match(notice, /suversal\/apple-store-inventory-monitor/);
+  assert.match(notice, /ENCHIGO\/apple-pickup-watcher/);
 });

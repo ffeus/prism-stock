@@ -846,7 +846,7 @@ async fn check_for_update(app: AppHandle) -> Result<Option<UpdateInfo>, String> 
 #[tauri::command]
 async fn install_update(app: AppHandle) -> Result<(), String> {
     if !fork_updates_enabled() {
-        return Err("棱镜库存尚未配置独立签名更新渠道，禁止安装上游发布包".into());
+        return Err("尚未配置签名更新渠道，已禁止自动安装其他发行包".into());
     }
     let updater = app
         .updater_builder()

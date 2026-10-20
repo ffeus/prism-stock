@@ -748,7 +748,7 @@ export async function openTargetProduct(target: Target): Promise<void> {
 
 export async function checkForUpdate(opts?: { quiet?: boolean }): Promise<void> {
   if (!BRAND.updatesEnabled) {
-    if (!opts?.quiet) pushLog("衍生版更新尚未配置；不会安装上游发布包。");
+    if (!opts?.quiet) pushLog("应用内更新尚未配置；不会自动安装其他发行包。");
     return;
   }
   try {
@@ -772,7 +772,7 @@ export async function checkForUpdate(opts?: { quiet?: boolean }): Promise<void> 
  */
 export async function installUpdate(): Promise<void> {
   if (!BRAND.updatesEnabled) {
-    update({ updateError: "尚未配置本项目的签名更新渠道，已阻止安装上游版本。" });
+    update({ updateError: "尚未配置签名更新渠道，已阻止自动安装。" });
     return;
   }
   if (state.installing || state.updateInstalled) return;
@@ -805,11 +805,11 @@ export function dismissUpdate(): void {
 /** 自动更新不可用时，打开本项目的完整安装包下载页。 */
 export async function openReleasePage(): Promise<void> {
   if (!BRAND.updatesEnabled) {
-    update({ updateError: "本项目尚未发布独立安装包，不能使用上游包覆盖此版本。" });
+    update({ updateError: "当前尚未发布经过安装验收的独立安装包。" });
     return;
   }
   try {
-    await openUrl("https://github.com/suversal/apple-store-inventory-monitor/releases/latest");
+    await openUrl(`${BRAND.repository}/releases`);
   } catch (err) {
     update({ updateError: `无法打开下载页：${String(err)}` });
   }

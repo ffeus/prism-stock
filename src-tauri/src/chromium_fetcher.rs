@@ -2856,13 +2856,23 @@ mod tests {
         let profile = tempfile::tempdir().unwrap();
         let session = ChromiumSession::start(profile.path().to_path_buf())
             .await
-            .unwrap();
+            .unwrap_or_else(|error| {
+                let diagnostic =
+                    std::fs::read_to_string(profile.path().join("browser-startup.log"))
+                        .unwrap_or_default();
+                panic!("首次启动失败：{error}\n{diagnostic}");
+            });
         assert!(session._process.job.is_some());
         drop(session);
         // 析构已经 wait() 主进程；再通过新会话验证目录锁也已释放。
         let session = ChromiumSession::start(profile.path().to_path_buf())
             .await
-            .unwrap();
+            .unwrap_or_else(|error| {
+                let diagnostic =
+                    std::fs::read_to_string(profile.path().join("browser-startup.log"))
+                        .unwrap_or_default();
+                panic!("回收后再次启动失败：{error}\n{diagnostic}");
+            });
         assert!(session._process.job.is_some());
         assert_eq!(
             unsafe { WaitForSingleObject(session._process.child.as_raw_handle(), 0) },

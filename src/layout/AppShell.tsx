@@ -44,7 +44,7 @@ export function AppShell({ page, navigate, children }: { page: PageId; navigate:
       <button className="quick-search" onClick={() => setCommandOpen(true)} aria-label="快速导航"><Command size={15} /><span>快速导航</span><kbd>Ctrl K</kbd></button>
       <div className="nav-section-label">工作空间</div><nav aria-label="主导航">{pages.map(id => { const Icon = icons[id]; return <button key={id} className={`nav-item ${page === id ? "is-active" : ""}`} aria-current={page === id ? "page" : undefined} title={pageTitles[id]} onClick={() => navigate(id)}><Icon size={18} /><span>{pageTitles[id]}</span></button>; })}</nav>
       <div className="sidebar-bottom"><div className="local-workspace"><span className="local-dot" /><div><strong>本地工作空间</strong><small>数据保存在当前设备</small></div></div>
-        <button className="sidebar-source" onClick={() => void openProjectPage()} title="来源与许可"><CircleHelp size={16} /><span>来源与许可</span><ArrowUpRight size={13} /></button><span className="license-note">GPL-3.0 · 独立衍生版</span></div>
+        <button className="sidebar-source" onClick={() => void openProjectPage()} title="项目与许可"><CircleHelp size={16} /><span>项目与许可</span><ArrowUpRight size={13} /></button><span className="license-note">GPL-3.0-or-later</span></div>
     </aside>
     <div className="workspace-main"><header className="app-topbar"><div className="breadcrumb"><Activity size={16} /><span>工作空间</span><ChevronRight size={13} /><strong>{pageTitles[page]}</strong></div><div className="topbar-actions"><ThemeControl /><EngineControls /></div></header>
       <main id="page-content" className="page-content" tabIndex={-1}>{children}</main>

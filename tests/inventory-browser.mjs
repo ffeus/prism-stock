@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
+import path from 'node:path';
 import {mkdir,writeFile} from 'node:fs/promises';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE_PATH ? pathToFileURL(process.env.PLAYWRIGHT_MODULE_PATH).href : 'playwright');
-await mkdir('docs/v2/evidence',{recursive:true});
+const evidence=process.env.PRISM_EVIDENCE_DIR??'docs/v2/evidence';
+await mkdir(evidence,{recursive:true});
 const url=process.env.PRISM_TEST_URL??'http://127.0.0.1:1425';
 const browser=await chromium.launch({headless:true});
 const errors=[];let page;
@@ -22,15 +24,16 @@ try{
  for(const name of ['仪表盘','监控任务','商品管理','历史记录','通知中心','自动结账','系统设置'])assert.equal(await page.getByRole('navigation',{name:'主导航'}).getByRole('button',{name,exact:true}).locator('span').isVisible(),true);
  await page.getByRole('navigation',{name:'主导航'}).getByRole('button',{name:'自动结账',exact:true}).click();await page.getByText('下单、付款、购物袋、登录及取货人信息均未接通',{exact:false}).waitFor();assert.equal(await page.getByRole('switch').count(),0);
  if(process.env.PRISM_ALLOW_LIVE!=='1') {
-   await page.screenshot({path:'docs/v2/evidence/inventory-browser-connected.png',fullPage:true});
+   await page.screenshot({path:path.join(evidence,'inventory-browser-connected.png'),fullPage:true});
    console.log('PASS: 浏览器连接真实 Rust、只读保护、同源保护和中文导航；未发起 Apple 查询');
  } else {
    // Explicit opt-in: exactly one SKU x one store, one cycle, never automatically retry.
    assert.equal((await rpc('is_running')).body.result,false,'验收前不得已有查询在运行');
    const products=(await rpc('list_products',{locale:'zh_CN'})).body.result;
    const stores=(await rpc('list_stores',{locale:'zh_CN'})).body.result;
-   const product=products.find(product=>product.category==='iphone'&&product.family==='iphone-17'&&product.capacity==='256GB')??products.find(product=>product.category==='iphone'&&!product.title.includes('Duo'));
-   const store=stores.find(store=>store.number==='R683')??stores[0];
+   const product=products.find(product=>product.partNumber===(process.env.PRISM_LIVE_PART??'MYF03CH/A'));
+   const store=stores.find(store=>store.number===(process.env.PRISM_LIVE_STORE??'R683'));
+   assert.ok(product&&store,'明确指定的验收 SKU 和门店必须存在；不静默替换目标');
    const target={locale:'zh_CN',partNumber:product.partNumber,productName:product.title,storeNumber:store.number,storeTitle:store.title};
    const existing=result.body.result.targets; const before=(await rpc('get_snapshot')).body.result;
    assert.ok(existing.length===0 || (existing.length===1 && existing[0].partNumber===target.partNumber && existing[0].storeNumber===target.storeNumber && before[0].lastCheckedMs===null),'不覆盖已有任务，不重复执行已完成的联网验收');
@@ -48,9 +51,9 @@ try{
    const snapshot=(await rpc('get_snapshot')).body.result;assert.equal(snapshot.length,1);assert.notEqual(snapshot[0].lastCheckedMs,null);
    const blocked=snapshot[0].availability.kind==='unknown';
    if(blocked) {await page.locator('.exception-summary').waitFor();await page.getByText('查看原因与处理建议',{exact:true}).click();}
-   await page.screenshot({path:'docs/v2/evidence/inventory-live-once.png',fullPage:true});
+   await page.screenshot({path:path.join(evidence,'inventory-live-once.png'),fullPage:true});
    const report={startedAt,finishedAt:new Date().toISOString(),mode:'real Apple via existing Rust Chromium fetcher',target,cycles,snapshot,runningAfter:false,querySucceeded:!blocked,ordersExecuted:false,errors};
-   await writeFile('docs/v2/evidence/apple-live-result.json',JSON.stringify(report,null,2));
+   await writeFile(path.join(evidence,'apple-live-result.json'),JSON.stringify(report,null,2));
    console.log(JSON.stringify({status:blocked?'真实查询已执行，但未取得可信库存':'真实库存查询通过',availability:snapshot[0].availability,requestCount:cycles[0].requestCount,paused:true}));
    await page.evaluate(()=>window.__LIVE_EVENT_ABORT__.abort());
  }
