@@ -24,7 +24,7 @@
 | `cargo fmt --all -- --check` | 通过 |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 通过 |
 | `cargo test --workspace` | 307 通过、0 失败、20 忽略；默认未执行真实接口、购物袋或结账测试 |
-| `pnpm test` | 77 通过、0 失败；包括公开文档与许可入口回归 |
+| `pnpm test` | 79 通过、0 失败；包括公开文档、许可入口与新手教程回归 |
 | `pnpm exec tsc --noEmit` / `pnpm build` | 通过 |
 | 快照脚本 `--self-test` | 通过，不联网抓取目录 |
 | `pnpm test:e2e` | Mock 浏览器 27 场景通过，外部请求拦截；包含添加/编辑/删除、多选、541、主题、设置、网络、Mock Bark 和结账 |
